@@ -1,6 +1,8 @@
-// Minimal offline cache for the app shell. Bump CACHE_NAME on future deploys
-// to invalidate old caches.
-var CACHE_NAME = "rozcestnik-v1";
+// Network-first with cache fallback: always try to fetch the latest version
+// first (so updates show up immediately, no stale-content confusion), and
+// only fall back to the cached copy when the network genuinely fails (offline).
+// Bump CACHE_NAME whenever the shell file list changes.
+var CACHE_NAME = "rozcestnik-v2";
 var SHELL = [
   "./",
   "./index.html",
@@ -37,15 +39,14 @@ self.addEventListener("activate", function (event) {
 self.addEventListener("fetch", function (event) {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      var network = fetch(event.request).then(function (resp) {
-        if (resp && resp.ok) {
-          var copy = resp.clone();
-          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, copy); });
-        }
-        return resp;
-      }).catch(function () { return cached; });
-      return cached || network;
+    fetch(event.request).then(function (resp) {
+      if (resp && resp.ok) {
+        var copy = resp.clone();
+        caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, copy); });
+      }
+      return resp;
+    }).catch(function () {
+      return caches.match(event.request);
     })
   );
 });

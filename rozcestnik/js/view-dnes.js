@@ -5,8 +5,9 @@
   var TV = window.RozTodayView;
   var DAY_NAMES = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];
 
-  var selectedRoomId = null; // resets to the day's suggested room each fresh load
-  var timer = { running: false, remainingSec: 0, roomId: null, intervalId: null };
+  var mode = "grid"; // 'grid' | 'room' | 'quest'
+  var openId = null;
+  var timer = { running: false, scopeType: null, scopeId: null, elapsedSec: 0, lastCheckpointSec: 0, intervalId: null };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -15,42 +16,90 @@
   }
   function pad2(n) { return n < 10 ? "0" + n : "" + n; }
   function mmss(totalSec) { return pad2(Math.floor(totalSec / 60)) + ":" + pad2(totalSec % 60); }
+  function actualLabelText(mins) { return mins === 0 ? "< 1 min" : mins + " min"; }
 
   function starsRow(streak) {
-    var svg = '<svg viewBox="0 0 24 24" fill="var(--raspberry)" stroke="none"><path d="M12 2l2.4 6.6H21l-5.4 4 2 6.6L12 15.6 6.4 19.2l2-6.6L3 8.6h6.6z"/></svg>';
-    var n = Math.min(5, Math.max(streak, streak === 0 ? 0 : 1));
+    var svgOn = '<svg viewBox="0 0 24 24" fill="var(--raspberry)" stroke="none"><path d="M12 2l2.4 6.6H21l-5.4 4 2 6.6L12 15.6 6.4 19.2l2-6.6L3 8.6h6.6z"/></svg>';
+    var svgOff = svgOn.replace('fill="var(--raspberry)"', 'fill="var(--line)"');
+    var n = Math.min(5, streak);
     var stars = "";
-    for (var i = 0; i < 5; i++) stars += i < n ? svg : svg.replace('fill="var(--raspberry)"', 'fill="var(--line)"');
+    for (var i = 0; i < 5; i++) stars += i < n ? svgOn : svgOff;
     return '<div class="stars-row">' + stars + '<span class="streak-num">' + streak + (streak === 1 ? " den v řadě" : (streak >= 2 && streak <= 4 ? " dny v řadě" : " dní v řadě")) + '</span></div>';
   }
 
-  function roomChipHtml(room, suggestedId) {
-    var key = TV.roomColorKey(window.RozStore.state, room.id);
-    var isActive = room.id === selectedRoomId;
+  function roomCardHtml(state, room, todayISO, suggestedId) {
+    var key = TV.roomColorKey(state, room.id);
+    var sum = TV.roomSummary(state, room.id, todayISO);
     var isSuggested = room.id === suggestedId;
-    return '<button type="button" class="room-chip' + (isActive ? " active" : "") + (isSuggested ? " suggested" : "") + '" style="--chip-color:var(--room-' + key + ');--chip-soft:var(--room-' + key + '-soft)" data-room-id="' + room.id + '">'
-      + '<span class="dot" style="background:var(--room-' + key + ')"></span>' + esc(room.name)
+    return '<button type="button" class="room-card" style="--tile:var(--room-' + key + ');--tile-soft:var(--room-' + key + '-soft)" data-open-room="' + room.id + '">'
+      + '<div class="rc-icon">🏠</div>'
+      + '<div class="rc-name">' + esc(room.name) + (isSuggested ? ' <span title="Doporučeno na dnes">✨</span>' : "") + "</div>"
+      + '<div class="rc-stat">' + (sum.remaining ? sum.remaining + "× úkol · ~" + sum.minutes + " min" : "vše hotovo 🎉") + "</div>"
+      + "</button>";
+  }
+
+  function questCardHtml(state, q, todayISO) {
+    var sum = TV.questSummary(state, q, todayISO);
+    return '<button type="button" class="room-card quest-tile" data-open-quest="' + q.id + '">'
+      + '<div class="rc-icon">🚩</div>'
+      + '<div class="rc-name">' + esc(q.name) + "</div>"
+      + '<div class="rc-stat">' + (sum.remaining ? sum.remaining + "× quest úkol" : "vše hotovo 🎉") + "</div>"
       + "</button>";
   }
 
   function stopHtml(t, idx) {
     var side = idx % 2 === 1 ? " right" : "";
-    var isQuest = t.kind.indexOf("quest") === 0;
+    var isQuest = !!t.isQuest;
     var cls = "stop" + (isQuest ? " quest" : "") + side + (t.done ? " done" : "");
-    var color = isQuest ? "var(--pine)" : ("var(--room-" + (t.colorKey || "a") + ")");
-    var sub = isQuest ? ("Quest · " + esc(t.quest)) : esc(t.room || "");
+    var color = isQuest && !t.colorKey ? "var(--petrol)" : ("var(--room-" + (t.colorKey || "a") + ")");
+    var sub = isQuest ? ("Quest · " + esc(t.quest)) : "";
     return '<div class="' + cls + '">'
       + '<button type="button" class="node' + (t.done ? " done" : "") + '" style="background:' + color + '" data-kind="' + t.kind + '" data-id="' + t.id + '" aria-label="' + esc(t.name) + (t.done ? " (hotovo)" : "") + '">'
         + (isQuest ? '<span class="flag">🚩</span>' : "")
       + "</button>"
-      + '<div class="stop-label"><b>' + esc(t.name) + "</b><span>" + sub + "</span></div>"
-      + '<div class="stop-time" style="background:' + color + '">' + (t.min || 0) + " min</div>"
+      + '<div class="stop-label"><b>' + esc(t.name) + "</b>" + (sub ? "<span>" + sub + "</span>" : "") + "</div>"
+      + '<div class="stop-time" style="background:' + color + '">' + (t.min || 0) + " min"
+        + (t.done && t.actual != null ? '<span class="stop-actual">✓ ' + actualLabelText(t.actual) + "</span>" : "")
+      + "</div>"
       + "</div>";
   }
 
   function pathHtml(items) {
-    if (!items.length) return '<p class="empty-note">Pro dnešek nic nezbývá. 🎉</p>';
+    if (!items.length) return '<p class="empty-note">Tady teď nic nezbývá. 🎉</p>';
     return '<div class="path">' + items.map(stopHtml).join("") + "</div>";
+  }
+
+  function timerBarHtml(scopeType, scopeId, label) {
+    var isThis = timer.scopeType === scopeType && timer.scopeId === scopeId;
+    var running = isThis && timer.running;
+    var display = isThis ? mmss(timer.elapsedSec) : "00:00";
+    return '<div class="timer-bar" id="timer-bar">'
+      + '<div class="timer-info"><div class="timer-room">' + esc(label) + '</div><div class="timer-sub">' + (running ? "odpočet běží" : "změř si reálný čas úklidu") + "</div></div>"
+      + '<div class="timer-display" id="timer-display">' + display + "</div>"
+      + '<button type="button" class="timer-btn' + (running ? " stop" : "") + '" id="timer-toggle">' + (running ? "Zastavit" : "Spustit odpočet") + "</button>"
+      + "</div>";
+  }
+
+  function renderGrid(state, todayISO) {
+    var streak = TV.computeStreak(state, todayISO);
+    var overall = TV.overallProgress(state, todayISO);
+    var pct = overall.total ? Math.round((overall.done / overall.total) * 100) : 0;
+    var dow = DAY_NAMES[D.toUTCDate(todayISO).getUTCDay()];
+    var suggested = TV.roomOfToday(state, todayISO);
+    var activeQuestList = TV.activeQuests(state);
+
+    return '<header class="top-block"><div class="blob"></div><div class="blob2"></div><div class="inner">'
+      + '<p class="eyebrow">' + dow.toUpperCase() + " · " + D.formatCzech(todayISO) + "</p>"
+      + '<h1 class="page-title">Ahoj, Katko!</h1>'
+      + starsRow(streak)
+      + '<div class="progress-mini"><div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div><div class="progress-num">' + overall.done + "/" + overall.total + "</div></div>"
+      + "</div></header>"
+      + '<div class="card-grid">'
+        + state.base.map(function (r) { return roomCardHtml(state, r, todayISO, suggested ? suggested.id : null); }).join("")
+        + activeQuestList.map(function (q) { return questCardHtml(state, q, todayISO); }).join("")
+      + "</div>"
+      + '<div class="subhead">Dle potřeby</div>'
+      + simpleListHtml(TV.asNeededTasks(state, todayISO));
   }
 
   function simpleListHtml(items) {
@@ -61,76 +110,55 @@
     }).join("") + "</ul>";
   }
 
-  function timerBarHtml(room, sessionMinutes) {
-    if (!room) return "";
-    var isThisRoom = timer.roomId === room.id;
-    var running = isThisRoom && timer.running;
-    var display = running ? mmss(timer.remainingSec) : mmss(Math.max(sessionMinutes, 0) * 60);
-    var sub = sessionMinutes > 0 ? (sessionMinutes + " min v zásobníku pro tuto místnost") : "zásobník téhle místnosti je prázdný";
-    return '<div class="timer-bar' + (isThisRoom && timer.remainingSec === 0 && timer.roomId ? " done" : "") + '" id="timer-bar">'
-      + '<div class="timer-info"><div class="timer-room">' + esc(room.name) + '</div><div class="timer-sub">' + sub + "</div></div>"
-      + '<div class="timer-display" id="timer-display">' + display + "</div>"
-      + '<button type="button" class="timer-btn' + (running ? " stop" : "") + '" id="timer-toggle" ' + (sessionMinutes <= 0 && !running ? "disabled" : "") + ">" + (running ? "Zastavit" : "Spustit odpočet") + "</button>"
-      + "</div>";
+  function renderRoomDetail(state, todayISO, roomId) {
+    var room = state.base.find(function (r) { return r.id === roomId; });
+    if (!room) { mode = "grid"; return renderGrid(state, todayISO); }
+    var tasks = TV.roomDetailTasks(state, roomId, todayISO);
+    return '<div class="detail-head"><button type="button" class="back-btn" id="back-btn" aria-label="Zpět">←</button><h1>' + esc(room.name) + "</h1></div>"
+      + timerBarHtml("room", roomId, room.name)
+      + '<h2 class="section-title">Dnešní trasa</h2>'
+      + '<p class="lede">Projdi si zastávky jednu po druhé.</p>'
+      + pathHtml(tasks);
+  }
+
+  function renderQuestDetail(state, todayISO, questId) {
+    var q = state.quests.find(function (x) { return x.id === questId; });
+    if (!q) { mode = "grid"; return renderGrid(state, todayISO); }
+    var tasks = TV.questDetailTasks(state, q, todayISO);
+    return '<div class="detail-head"><button type="button" class="back-btn" id="back-btn" aria-label="Zpět">←</button><h1 style="color:var(--petrol)">' + esc(q.name) + "</h1></div>"
+      + timerBarHtml("quest", questId, q.name)
+      + '<h2 class="section-title">Questové úkoly</h2>'
+      + pathHtml(tasks);
   }
 
   function render() {
     var el = document.getElementById("view-dnes");
     var state = window.RozStore.state;
     var todayISO = D.todayISO();
-    var suggested = TV.roomOfToday(state, todayISO);
-    if (selectedRoomId === null) selectedRoomId = suggested ? suggested.id : null;
-    if (selectedRoomId && !state.base.some(function (r) { return r.id === selectedRoomId; })) selectedRoomId = suggested ? suggested.id : null;
-    var selectedRoom = state.base.find(function (r) { return r.id === selectedRoomId; }) || null;
-
-    var view = TV.computeTodayView(state, todayISO, selectedRoomId);
-    var streak = TV.computeStreak(state, todayISO);
-    var pct = view.progressTotal ? Math.round((view.progressDone / view.progressTotal) * 100) : 0;
-    var dow = DAY_NAMES[D.toUTCDate(todayISO).getUTCDay()];
-    var activeQuestList = TV.activeQuests(state);
-
-    var pathItems = view.daily.concat(view.weekly, view.quarterly, view.questAdded, view.questModified);
-
-    el.innerHTML =
-      '<header class="top-block"><div class="blob"></div><div class="blob2"></div><div class="inner">'
-        + '<p class="eyebrow">' + dow.toUpperCase() + " · " + D.formatCzech(todayISO) + "</p>"
-        + '<h1 class="page-title">Ahoj, Katko!</h1>'
-        + starsRow(streak)
-        + '<div class="progress-mini"><div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div><div class="progress-num">' + view.progressDone + "/" + view.progressTotal + "</div></div>"
-      + "</div>"
-      + (activeQuestList.length
-        ? activeQuestList.map(function (q) {
-            return '<div class="badge-quest"><div class="icon">🎄</div><div><b>' + esc(q.name) + ' aktivní</b><span>Přidává úkoly do dnešní trasy</span></div></div>';
-          }).join("")
-        : "")
-      + "</header>"
-      + '<div class="room-picker">' + state.base.map(function (r) { return roomChipHtml(r, suggested ? suggested.id : null); }).join("") + "</div>"
-      + timerBarHtml(selectedRoom, view.sessionMinutes)
-      + '<h2 class="section-title">Dnešní trasa</h2>'
-      + '<p class="lede">Projdi si zastávky jednu po druhé.</p>'
-      + pathHtml(pathItems)
-      + '<div class="subhead">Dle potřeby</div>'
-      + simpleListHtml(view.asNeeded);
-
-    wireEvents(el, selectedRoom, view.sessionMinutes);
+    if (mode === "room") el.innerHTML = renderRoomDetail(state, todayISO, openId);
+    else if (mode === "quest") el.innerHTML = renderQuestDetail(state, todayISO, openId);
+    else el.innerHTML = renderGrid(state, todayISO);
+    wireEvents(el);
   }
 
-  function wireEvents(el, selectedRoom) {
+  function wireEvents(el) {
     el.querySelectorAll(".node, .check").forEach(function (btn) {
       btn.addEventListener("click", function () { toggle(btn.dataset.kind, btn.dataset.id); });
     });
-    el.querySelectorAll(".room-chip").forEach(function (chip) {
-      chip.addEventListener("click", function () {
-        selectedRoomId = chip.dataset.roomId;
-        stopTimer();
-        render();
-      });
+    el.querySelectorAll("[data-open-room]").forEach(function (b) {
+      b.addEventListener("click", function () { mode = "room"; openId = b.dataset.openRoom; render(); });
     });
+    el.querySelectorAll("[data-open-quest]").forEach(function (b) {
+      b.addEventListener("click", function () { mode = "quest"; openId = b.dataset.openQuest; render(); });
+    });
+    var back = document.getElementById("back-btn");
+    if (back) back.addEventListener("click", function () { mode = "grid"; openId = null; stopTimer(); render(); });
     var toggleBtn = document.getElementById("timer-toggle");
     if (toggleBtn) {
       toggleBtn.addEventListener("click", function () {
-        if (timer.running && timer.roomId === (selectedRoom && selectedRoom.id)) stopTimer();
-        else startTimer(selectedRoom);
+        var scopeType = mode === "quest" ? "quest" : "room";
+        if (timer.running && timer.scopeType === scopeType && timer.scopeId === openId) stopTimer();
+        else startTimer(scopeType, openId);
         renderTimerOnly();
       });
     }
@@ -140,46 +168,40 @@
     var state = window.RozStore.state;
     var todayISO = D.todayISO();
     var idx = state.completions.findIndex(function (c) { return c.kind === kind && c.taskId === taskId && c.date === todayISO; });
-    if (idx > -1) state.completions.splice(idx, 1);
-    else state.completions.push({ id: window.RozStore.uid("c"), kind: kind, taskId: taskId, date: todayISO });
+    if (idx > -1) {
+      state.completions.splice(idx, 1);
+    } else {
+      var rec = { id: window.RozStore.uid("c"), kind: kind, taskId: taskId, date: todayISO, actualMin: null };
+      var scopeType = mode === "quest" ? "quest" : (mode === "room" ? "room" : null);
+      if (timer.running && scopeType && timer.scopeType === scopeType && timer.scopeId === openId) {
+        rec.actualMin = Math.round((timer.elapsedSec - timer.lastCheckpointSec) / 60);
+        timer.lastCheckpointSec = timer.elapsedSec;
+      }
+      state.completions.push(rec);
+    }
     window.RozStore.save("toggle");
     render();
   }
 
-  function startTimer(room) {
-    if (!room) return;
+  function startTimer(scopeType, scopeId) {
     clearInterval(timer.intervalId);
-    var state = window.RozStore.state;
-    var view = TV.computeTodayView(state, D.todayISO(), room.id);
-    timer.remainingSec = Math.max(view.sessionMinutes, 1) * 60;
-    timer.running = true;
-    timer.roomId = room.id;
-    timer.intervalId = setInterval(function () {
-      timer.remainingSec--;
-      if (timer.remainingSec <= 0) { timer.remainingSec = 0; timer.running = false; clearInterval(timer.intervalId); }
-      renderTimerOnly();
-    }, 1000);
+    timer.running = true; timer.scopeType = scopeType; timer.scopeId = scopeId;
+    timer.elapsedSec = 0; timer.lastCheckpointSec = 0;
+    timer.intervalId = setInterval(function () { timer.elapsedSec++; renderTimerOnly(); }, 1000);
   }
-
   function stopTimer() {
     clearInterval(timer.intervalId);
     timer.running = false;
   }
-
   function renderTimerOnly() {
-    var bar = document.getElementById("timer-bar");
     var display = document.getElementById("timer-display");
     var btn = document.getElementById("timer-toggle");
-    if (!bar || !display || !btn) return;
-    display.textContent = timer.running ? mmss(timer.remainingSec) : display.textContent;
-    if (timer.running) {
-      btn.textContent = "Zastavit";
-      btn.classList.add("stop");
-    } else {
-      btn.textContent = "Spustit odpočet";
-      btn.classList.remove("stop");
-      if (timer.remainingSec === 0 && timer.roomId) { bar.classList.add("done"); display.textContent = "00:00"; }
-    }
+    var sub = document.querySelector(".timer-sub");
+    if (!display || !btn) return;
+    display.textContent = mmss(timer.elapsedSec);
+    btn.textContent = timer.running ? "Zastavit" : "Spustit odpočet";
+    btn.classList.toggle("stop", timer.running);
+    if (sub) sub.textContent = timer.running ? "odpočet běží" : "změř si reálný čas úklidu";
   }
 
   window.RozViewDnes = { render: render };

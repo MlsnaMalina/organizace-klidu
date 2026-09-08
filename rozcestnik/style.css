@@ -14,13 +14,16 @@
   --danger:#B23A3A;
   --shadow:0 1px 2px rgba(43,42,40,.07), 0 6px 16px rgba(43,42,40,.06);
   --nav-h:72px;
-  /* room accent cycle — assigned by room INDEX, not identity, so it survives renames */
+  /* room accent cycle — assigned by room INDEX, not identity, so it survives
+     renames. Petrol is kept OUT of this cycle on purpose: it's reserved for
+     the quest layer (see .badge-quest / .node .flag / quest cards) so it
+     stays visible and distinct rather than getting buried as one room's dot. */
   --room-a:#B23A5C; --room-a-soft:#F3DCE3;   /* raspberry */
   --room-b:#6E8C5A; --room-b-soft:#E4EEDB;   /* moss */
   --room-c:#C97B84; --room-c-soft:#F5E1E3;   /* dusty rose */
-  --room-d:#2B6E6E; --room-d-soft:#DCEBEA;   /* petrol */
-  --room-e:#8C5A82; --room-e-soft:#EFE1EC;   /* plum */
-  --room-f:#4A7291; --room-f-soft:#DEE9F1;   /* denim */
+  --room-d:#8C5A82; --room-d-soft:#EFE1EC;   /* plum */
+  --room-e:#4A7291; --room-e-soft:#DEE9F1;   /* denim */
+  --room-f:#8A6349; --room-f-soft:#EDE2DA;   /* cocoa */
 }
 /* Deliberately always light — she wants a consistent white/warm look
    regardless of the phone's system theme, not an auto dark mode. */
@@ -83,12 +86,12 @@ header.top-block .inner{position:relative;z-index:1;}
 .streak-num{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:.9rem;margin-left:4px;color:var(--raspberry);}
 
 .badge-quest{
-  margin:14px 0 6px;background:var(--surface);border:2px dashed var(--pine);border-radius:18px;
+  margin:14px 0 6px;background:var(--surface);border:2px dashed var(--petrol);border-radius:18px;
   padding:10px 14px;display:flex;align-items:center;gap:10px;position:relative;z-index:1;
   box-shadow:var(--shadow);
 }
-.badge-quest .icon{width:34px;height:34px;border-radius:50%;background:var(--pine);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;}
-.badge-quest b{font-family:'Baloo 2',sans-serif;font-size:.88rem;display:block;color:var(--pine);}
+.badge-quest .icon{width:34px;height:34px;border-radius:50%;background:var(--petrol);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;}
+.badge-quest b{font-family:'Baloo 2',sans-serif;font-size:.88rem;display:block;color:var(--petrol);}
 .badge-quest span{font-size:.76rem;color:var(--ink-soft);font-weight:700;}
 
 .progress-mini{display:flex;align-items:center;gap:.6rem;margin-top:10px;}
@@ -118,6 +121,25 @@ header.top-block .inner{position:relative;z-index:1;}
 .timer-btn.stop{background:var(--ink-soft);}
 .timer-bar.done .timer-display{color:var(--moss);}
 
+/* ---------- Home: grid of room/quest cards ---------- */
+.card-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.6rem;}
+.room-card{
+  position:relative;border:none;border-radius:18px;padding:1rem .9rem .9rem;text-align:left;cursor:pointer;
+  background:var(--tile-soft,var(--surface));box-shadow:var(--shadow);overflow:hidden;
+}
+.room-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--tile,var(--ink-soft));}
+.room-card .rc-icon{width:2.4rem;height:2.4rem;border-radius:50%;background:var(--tile,var(--ink-soft));color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:.6rem;}
+.room-card .rc-name{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:.3rem;}
+.room-card .rc-stat{font-size:.76rem;color:var(--ink-soft);font-weight:700;margin-top:.2rem;}
+.room-card.quest-tile{background:var(--petrol-soft);}
+.room-card.quest-tile::before{background:var(--petrol);}
+.room-card.quest-tile .rc-icon{background:var(--petrol);}
+
+/* ---------- Room/quest detail: header + back ---------- */
+.detail-head{display:flex;align-items:center;gap:.7rem;margin-bottom:.2rem;}
+.back-btn{background:var(--surface);border:1px solid var(--line);border-radius:12px;width:2.3rem;height:2.3rem;flex:0 0 auto;font-size:1.1rem;color:var(--ink);cursor:pointer;}
+.detail-head h1{font-size:1.5rem;}
+
 /* ---------- Dnešní trasa: winding path of stops ---------- */
 h2.section-title{font-size:1.2rem;margin:1.4rem 0 .1rem;}
 .path{position:relative;padding:8px 6px 4px;}
@@ -137,7 +159,7 @@ h2.section-title{font-size:1.2rem;margin:1.4rem 0 .1rem;}
 .node.done{filter:saturate(.6) brightness(.92);}
 .node.done::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.28);border-radius:50%;font-size:1.3rem;}
 .node .flag{
-  position:absolute;top:-3px;right:-3px;width:20px;height:20px;background:var(--pine);
+  position:absolute;top:-3px;right:-3px;width:20px;height:20px;background:var(--petrol);
   border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--paper);
   font-size:.6rem;z-index:2;
 }
@@ -150,6 +172,7 @@ h2.section-title{font-size:1.2rem;margin:1.4rem 0 .1rem;}
 }
 .stop.right .stop-time{margin-left:0;margin-right:auto;}
 .stop.done .stop-label b{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:var(--line);}
+.stop-actual{display:block;margin-top:.15rem;font-size:.68rem;font-weight:800;color:var(--moss);}
 .empty-note{color:var(--ink-soft);font-size:.88rem;font-style:italic;font-weight:600;padding:.6rem 0;}
 
 /* ---------- Simple task list (Dle potřeby) ---------- */

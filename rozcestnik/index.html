@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#B23A5C">
+<meta name="description" content="Osobní domácí organizér – základ a questy">
+<title>Rozcestník</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="app">
+  <section id="view-dnes" class="view" data-view="dnes"></section>
+  <section id="view-kalendar" class="view" data-view="kalendar"></section>
+  <section id="view-questy" class="view" data-view="questy"></section>
+  <section id="view-nastaveni" class="view" data-view="nastaveni"></section>
+</main>
+
+<nav class="bottom-nav" aria-label="Hlavní navigace">
+  <button type="button" class="nav-item" data-nav="dnes" aria-label="Dnes">
+    <span class="nav-icon" aria-hidden="true">☀️</span><span class="nav-label">Dnes</span>
+  </button>
+  <button type="button" class="nav-item" data-nav="kalendar" aria-label="Kalendář">
+    <span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Kalendář</span>
+  </button>
+  <button type="button" class="nav-item" data-nav="questy" aria-label="Questy">
+    <span class="nav-icon" aria-hidden="true">🌊</span><span class="nav-label">Questy</span>
+  </button>
+  <button type="button" class="nav-item" data-nav="nastaveni" aria-label="Nastavení">
+    <span class="nav-icon" aria-hidden="true">⚙️</span><span class="nav-label">Nastavení</span>
+  </button>
+</nav>
+
+<div class="toast-region" id="toast-region" aria-live="polite"></div>
+
+<script src="js/store.js"></script>
+<script src="js/dates.js"></script>
+<script src="js/today-view.js"></script>
+<script src="js/view-dnes.js"></script>
+<script src="js/view-kalendar.js"></script>
+<script src="js/view-questy.js"></script>
+<script src="js/view-nastaveni.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

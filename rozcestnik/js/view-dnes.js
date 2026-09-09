@@ -140,8 +140,12 @@
     });
     var d = "M" + pts[0][0] + " " + pts[0][1];
     for (var i = 1; i < pts.length; i++) {
-      var prevMidY = ((+pts[i - 1][1] + +pts[i][1]) / 2).toFixed(1);
-      d += " S " + pts[i - 1][0] + " " + prevMidY + "," + pts[i][0] + " " + pts[i][1];
+      // Each segment gets its own control points (not chained/reflected via "S") —
+      // reflection through a zigzag of alternating left/right stops sends the
+      // implicit control point flying far outside the container on every other
+      // segment, which is what made the dashed trail look broken/random.
+      var midY = ((+pts[i - 1][1] + +pts[i][1]) / 2).toFixed(1);
+      d += " C " + pts[i - 1][0] + " " + midY + "," + pts[i][0] + " " + midY + "," + pts[i][0] + " " + pts[i][1];
     }
     pathTag.setAttribute("d", d);
   }

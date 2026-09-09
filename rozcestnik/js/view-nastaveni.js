@@ -1,12 +1,16 @@
-// Settings CRUD editor — adapted from the Rozcestník prototype, writing straight to
-// RozStore (localStorage) instead of publishing an Artifact. Field edits update state
-// silently (no re-render, so focus/typing isn't disturbed); structural changes
-// (add/delete rooms, tasks, quests) trigger a full render().
+// Settings CRUD editor — writes straight to RozStore (localStorage). Field
+// edits update state silently (no re-render, so focus/typing isn't disturbed);
+// structural changes (add/delete rooms, tasks, quests) trigger a full render().
 (function () {
   "use strict";
 
+  var ic = window.RozIcon;
+  var FALLBACK_ROOM_COLORS = ["kitchen", "living", "bedroom", "bath", "hall", "kids", "car", "garden"];
+
   var FREQ_OPTIONS = [
-    ["denne", "denně"], ["tydne", "týdně"], ["ctvrtletne", "čtvrtletně"], ["dle_potreby", "dle potřeby"]
+    ["denne", "denně"], ["tydne", "týdně"], ["ctrnactidenne", "čtrnáctidenně"],
+    ["mesicne", "měsíčně"], ["ctvrtletne", "čtvrtletně"], ["pololetne", "pololetně"],
+    ["rocne", "ročně"], ["dle_potreby", "dle potřeby"]
   ];
 
   function esc(s) {
@@ -62,7 +66,7 @@
     return '<li class="edit-row" data-id="' + t.id + '">'
       + '<div class="edit-line1">'
         + '<span class="edit-name" contenteditable="true" data-field="name" aria-label="Název úkolu">' + esc(t.name) + "</span>"
-        + '<button class="icon-btn" type="button" data-action="delete-base-task" title="Smazat úkol">✕</button>'
+        + '<button class="icon-btn" type="button" data-action="delete-base-task" title="Smazat úkol">' + ic("i-x") + "</button>"
       + "</div>"
       + '<div class="edit-line2">'
         + '<input class="edit-min" type="number" min="0" step="5" inputmode="numeric" value="' + (parseInt(t.min, 10) || 0) + '" data-field="min" aria-label="Minuty">'
@@ -75,7 +79,7 @@
     var html = '<li class="edit-row" data-id="' + t.id + '">'
       + '<div class="edit-line1">'
         + '<span class="edit-name" contenteditable="true" data-field="name" aria-label="Název úkolu">' + esc(t.name) + "</span>"
-        + '<button class="icon-btn" type="button" data-action="delete-quest-task" title="Smazat úkol">✕</button>'
+        + '<button class="icon-btn" type="button" data-action="delete-quest-task" title="Smazat úkol">' + ic("i-x") + "</button>"
       + "</div>"
       + '<div class="edit-line2">'
         + '<input class="edit-min" type="number" min="0" step="5" inputmode="numeric" value="' + (parseInt(t.min, 10) || 0) + '" data-field="min" aria-label="Minuty">'
@@ -95,26 +99,28 @@
 
   function roomCardHtml(room) {
     return '<div class="edit-card" data-id="' + room.id + '">'
-      + '<div class="card-head">'
+      + '<div class="card card-head" style="margin-bottom:0">'
+        + '<span class="qmedal" style="width:1.9rem;height:1.9rem;background:var(--' + (room.color || "kitchen") + ')">' + ic(room.icon || "i-pokojicek") + "</span>"
         + '<span class="card-title" contenteditable="true" data-field="name" aria-label="Název místnosti">' + esc(room.name) + "</span>"
-        + '<button class="icon-btn" type="button" data-action="delete-room" title="Smazat místnost">✕</button>'
+        + '<button class="icon-btn" type="button" data-action="delete-room" title="Smazat místnost">' + ic("i-x") + "</button>"
       + "</div>"
-      + '<ul class="task-list">' + room.tasks.map(baseTaskRowHtml).join("") + "</ul>"
+      + '<ul class="task-list" style="padding:0">' + room.tasks.map(baseTaskRowHtml).join("") + "</ul>"
       + '<button class="add-row" type="button" data-action="add-base-task">+ Přidat úkol</button>'
       + "</div>";
   }
 
   function questCardHtml(q) {
     return '<div class="edit-card" data-id="' + q.id + '">'
-      + '<div class="card-head">'
+      + '<div class="card card-head" style="margin-bottom:0">'
+        + '<span class="qmedal" style="width:1.9rem;height:1.9rem;background:var(--' + (q.color || "petrol") + ')">' + ic(q.icon || "i-flag") + "</span>"
         + '<span class="card-title" contenteditable="true" data-field="name" aria-label="Název questu">' + esc(q.name) + "</span>"
-        + '<button class="icon-btn" type="button" data-action="delete-quest" title="Smazat quest">✕</button>'
+        + '<button class="icon-btn" type="button" data-action="delete-quest" title="Smazat quest">' + ic("i-x") + "</button>"
       + "</div>"
-      + '<div class="subhead">Přidává navíc</div>'
-      + '<ul class="task-list">' + q.added.map(function (t) { return questTaskRowHtml(t, false); }).join("") + "</ul>"
+      + '<div class="subhead2">Přidává navíc</div>'
+      + '<ul class="task-list" style="padding:0">' + q.added.map(function (t) { return questTaskRowHtml(t, false); }).join("") + "</ul>"
       + '<button class="add-row" type="button" data-action="add-added">+ Přidat úkol navíc</button>'
-      + '<div class="subhead">Upravuje základní úkoly</div>'
-      + '<ul class="task-list">' + q.modified.map(function (t) { return questTaskRowHtml(t, true); }).join("") + "</ul>"
+      + '<div class="subhead2">Upravuje základní úkoly</div>'
+      + '<ul class="task-list" style="padding:0">' + q.modified.map(function (t) { return questTaskRowHtml(t, true); }).join("") + "</ul>"
       + '<button class="add-row" type="button" data-action="add-modified">+ Přidat úpravu</button>'
       + "</div>";
   }
@@ -125,20 +131,20 @@
     var totalTasks = state.base.reduce(function (n, r) { return n + r.tasks.length; }, 0);
 
     el.innerHTML =
-      '<p class="eyebrow">Nastavení</p>'
+      '<p class="eyebrow" style="margin:1.3rem 1.1rem 0">Nastavení</p>'
       + '<h1 class="page-title">Uprav strukturu</h1>'
-      + '<p class="lede">Klikni na text a přepiš ho, tlačítkem + přidáš řádek nebo celou novou místnost/quest. ' + state.base.length + " místností, " + totalTasks + " úkolů v základu.</p>"
-      + '<section class="limb limb-base"><h2>🌿 Základ <span class="limb-sub">běží pořád</span></h2>'
+      + '<p class="lede" style="margin:.3rem 1.1rem 1rem">Klikni na text a přepiš ho, tlačítkem + přidáš řádek nebo celou novou místnost/quest. ' + state.base.length + " místností, " + totalTasks + " úkolů v základu.</p>"
+      + '<section class="limb limb-base"><h2>' + ic("i-leaf") + 'Základ <span class="limb-sub">běží pořád</span></h2>'
         + '<div class="cards" id="set-base-cards">' + state.base.map(roomCardHtml).join("") + "</div>"
         + '<button class="add-branch" type="button" data-action="add-room">+ Přidat místnost</button>'
       + "</section>"
-      + '<section class="limb limb-quest"><h2>🌊 Questy <span class="limb-sub">volitelné navíc</span></h2>'
+      + '<section class="limb limb-quest"><h2>' + ic("i-nav-quest") + 'Questy <span class="limb-sub">volitelné navíc</span></h2>'
         + '<div class="cards" id="set-quest-cards">' + state.quests.map(questCardHtml).join("") + "</div>"
         + '<button class="add-branch" type="button" data-action="add-quest">+ Přidat quest</button>'
       + "</section>"
       + '<div class="settings-footer">'
-        + '<button type="button" id="btn-export">⭳ Zálohovat (export JSON)</button>'
-        + '<label style="display:inline-block"><button type="button" id="btn-import-trigger">⭱ Obnovit ze zálohy</button><input type="file" id="file-import" accept="application/json"></label>'
+        + '<button type="button" id="btn-export">' + ic("i-download") + "Zálohovat</button>"
+        + '<label style="display:inline-block"><button type="button" id="btn-import-trigger">' + ic("i-upload") + "Obnovit ze zálohy</button><input type=\"file\" id=\"file-import\" accept=\"application/json\"></label>"
       + "</div>";
 
     wireEvents(el);
@@ -174,9 +180,10 @@
     } else if (action === "delete-room" && card) {
       deleteWithUndo(locateRoom(card.dataset.id), "Místnost smazána");
     } else if (action === "add-room") {
-      state.base.push({ id: uid("room"), name: "Nová místnost", tasks: [] }); window.RozStore.save(); render(); focusNew();
+      state.base.push({ id: uid("room"), name: "Nová místnost", color: FALLBACK_ROOM_COLORS[state.base.length % FALLBACK_ROOM_COLORS.length], icon: "i-pokojicek", tasks: [] });
+      window.RozStore.save(); render(); focusNew();
     } else if (action === "add-quest") {
-      state.quests.push({ id: uid("quest"), name: "Nový quest", active: false, added: [], modified: [] }); window.RozStore.save(); render(); focusNew();
+      state.quests.push({ id: uid("quest"), name: "Nový quest", active: false, color: "petrol", icon: "i-flag", added: [], modified: [] }); window.RozStore.save(); render(); focusNew();
     } else if (action === "delete-quest" && card) {
       deleteWithUndo(locateQuest(card.dataset.id), "Quest smazán");
     } else if (action === "add-added" && card) {
@@ -226,7 +233,6 @@
 
   function focusNew() {
     requestAnimationFrame(function () {
-      var el = document.querySelector('.edit-card .card-title:last-of-type') || document.querySelector(".edit-row:last-child .edit-name");
       var targets = document.querySelectorAll(".card-title, .edit-name");
       var last = targets[targets.length - 1];
       if (last) { last.focus(); var sel = document.getSelection(); if (sel) sel.selectAllChildren(last); }

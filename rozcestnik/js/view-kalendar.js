@@ -3,6 +3,7 @@
 
   var D = window.RozDates;
   var TV = window.RozTodayView;
+  var ic = window.RozIcon;
   var cursorYear = null, cursorMonth0 = null; // 0-based month
 
   function daysInMonth(y, m0) {
@@ -43,18 +44,18 @@
     var dowHtml = D.DOW_LABELS.map(function (l) { return '<div class="cal-dow">' + l + "</div>"; }).join("");
 
     el.innerHTML =
-      '<p class="eyebrow">Přehled</p>'
+      '<p class="eyebrow" style="margin:1.3rem 1.1rem 0">Přehled</p>'
       + '<h1 class="page-title">Kalendář</h1>'
-      + '<p class="lede">Barva dne ukazuje, kolik denních úkolů toho dne bylo hotovo.</p>'
+      + '<p class="lede" style="margin:.3rem 1.1rem 1rem">Barva dne ukazuje, kolik denních úkolů toho dne bylo hotovo.</p>'
       + '<div class="month-nav">'
-        + '<button type="button" id="cal-prev" aria-label="Předchozí měsíc">‹</button>'
+        + '<button type="button" id="cal-prev" aria-label="Předchozí měsíc">' + ic("i-back") + "</button>"
         + '<span class="month-label">' + D.MONTH_LABELS[cursorMonth0] + " " + cursorYear + "</span>"
-        + '<button type="button" id="cal-next" aria-label="Další měsíc">›</button>'
+        + '<button type="button" id="cal-next" aria-label="Další měsíc" style="transform:scaleX(-1)">' + ic("i-back") + "</button>"
       + "</div>"
       + '<div class="cal-grid">' + dowHtml + cells + "</div>"
       + '<div class="cal-legend">'
-        + '<span><span class="legend-dot" style="background:var(--raspberry)"></span> vše hotovo</span>'
-        + '<span><span class="legend-dot" style="background:var(--raspberry-soft)"></span> částečně</span>'
+        + '<span><span class="legend-dot" style="background:var(--petrol)"></span> vše hotovo</span>'
+        + '<span><span class="legend-dot" style="background:var(--petrol-soft)"></span> částečně</span>'
         + '<span><span class="legend-dot" style="background:var(--surface)"></span> nic</span>'
       + "</div>";
 

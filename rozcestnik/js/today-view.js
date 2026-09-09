@@ -4,7 +4,13 @@
   "use strict";
 
   var D = window.RozDates;
-  var ROOM_COLOR_KEYS = ["a", "b", "c", "d", "e", "f"];
+
+  // Rolling-window frequencies: "due" once this many days have passed since
+  // the last completion (never calendar-bucketed, unlike denne/tydne/ctvrtletne
+  // below, which reset on daily/ISO-week/calendar-quarter boundaries). Rolling
+  // fits these better since e.g. "yearly" has no natural recurring bucket the
+  // way a week or quarter does.
+  var ROLLING_PERIOD_DAYS = { ctrnactidenne: 14, mesicne: 30, pololetne: 182, rocne: 365 };
 
   function isOneOff(freqText) {
     return /jednorázov|jednorazov|jednou|1x/i.test(freqText || "");
@@ -23,11 +29,29 @@
   function everDone(state, kind, taskId) {
     return state.completions.some(function (c) { return c.kind === kind && c.taskId === taskId; });
   }
+  function lastDoneDate(state, kind, taskId) {
+    var last = null;
+    state.completions.forEach(function (c) {
+      if (c.kind === kind && c.taskId === taskId && (!last || c.date > last)) last = c.date;
+    });
+    return last;
+  }
+  function isRollingDue(state, kind, taskId, todayISO, freq) {
+    var period = ROLLING_PERIOD_DAYS[freq];
+    if (!period) return false;
+    var last = lastDoneDate(state, kind, taskId);
+    if (!last) return true;
+    var days = Math.round((D.toUTCDate(todayISO) - D.toUTCDate(last)) / 86400000);
+    return days >= period;
+  }
 
   function roomColorKey(state, roomId) {
-    var idx = state.base.findIndex(function (r) { return r.id === roomId; });
-    if (idx < 0) idx = 0;
-    return ROOM_COLOR_KEYS[idx % ROOM_COLOR_KEYS.length];
+    var room = state.base.find(function (r) { return r.id === roomId; });
+    return (room && room.color) || "kitchen";
+  }
+  function roomIcon(state, roomId) {
+    var room = state.base.find(function (r) { return r.id === roomId; });
+    return (room && room.icon) || "i-pokojicek";
   }
 
   function roomOfToday(state, todayISO) {
@@ -79,6 +103,7 @@
       if (t.freq === "denne") { row.done = doneOn(state, "base", t.id, todayISO); row.actual = actualLabel(state, "base", t.id, todayISO); out.push(row); }
       else if (t.freq === "tydne" && !doneInRange(state, "base", t.id, week.start, week.end)) out.push(row);
       else if (t.freq === "ctvrtletne" && !doneInRange(state, "base", t.id, quarter.start, quarter.end)) out.push(row);
+      else if (ROLLING_PERIOD_DAYS[t.freq] && isRollingDue(state, "base", t.id, todayISO, t.freq)) out.push(row);
     });
     activeQuests(state).forEach(function (q) {
       (q.modified || []).forEach(function (t) {
@@ -88,6 +113,7 @@
         if (base.freq === "denne") { row.done = doneOn(state, "quest-modified", t.id, todayISO); row.actual = actualLabel(state, "quest-modified", t.id, todayISO); out.push(row); }
         else if (base.freq === "tydne" && !doneInRange(state, "quest-modified", t.id, week.start, week.end)) out.push(row);
         else if (base.freq === "ctvrtletne" && !doneInRange(state, "quest-modified", t.id, quarter.start, quarter.end)) out.push(row);
+        else if (ROLLING_PERIOD_DAYS[base.freq] && isRollingDue(state, "quest-modified", t.id, todayISO, base.freq)) out.push(row);
       });
     });
     return out;
@@ -174,6 +200,7 @@
     isOneOff: isOneOff,
     activeQuests: activeQuests,
     roomColorKey: roomColorKey,
+    roomIcon: roomIcon,
     roomOfToday: roomOfToday,
     findRoomOf: findRoomOf,
     findBaseTaskById: findBaseTaskById,

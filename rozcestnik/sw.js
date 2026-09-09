@@ -2,7 +2,7 @@
 // first (so updates show up immediately, no stale-content confusion), and
 // only fall back to the cached copy when the network genuinely fails (offline).
 // Bump CACHE_NAME whenever the shell file list changes.
-var CACHE_NAME = "rozcestnik-v2";
+var CACHE_NAME = "rozcestnik-v3";
 var SHELL = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ var SHELL = [
   "./manifest.json",
   "./js/store.js",
   "./js/dates.js",
+  "./js/icons.js",
   "./js/today-view.js",
   "./js/view-dnes.js",
   "./js/view-kalendar.js",

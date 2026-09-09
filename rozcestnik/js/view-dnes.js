@@ -113,19 +113,37 @@
   }
 
   function pathHtml(items) {
-    if (!items.length) return '<p class="empty-note">Tady teď nic nezbývá. 🎉</p>'.replace("🎉", "");
-    var n = items.length;
-    var d = "M60 30";
-    for (var i = 1; i < n; i++) {
-      var y1 = 30 + (i - 1) * 90, y2 = 30 + i * 90;
-      var side = i % 2 === 1 ? "260" : "60";
-      var prevSide = i % 2 === 1 ? "60" : "260";
-      d += " S " + prevSide + " " + (y1 + 45) + "," + side + " " + y2;
-    }
-    var trail = '<path d="' + d + '" stroke="var(--petrol)" stroke-width="5" stroke-dasharray="3 11" fill="none" stroke-linecap="round" opacity="0.85"/>';
-    var h = Math.max(300, n * 90 + 40);
-    return '<div class="path"><svg class="trail" viewBox="0 0 320 ' + h + '" preserveAspectRatio="none">' + trail + "</svg>"
+    if (!items.length) return '<p class="empty-note">Tady teď nic nezbývá.</p>';
+    // The trail's <path> is empty here on purpose — .node positions depend on
+    // real text wrapping, which we can't know until the browser has laid the
+    // stops out. drawTrail() measures the actual rendered nodes and fills the
+    // curve in afterwards, so it always matches where the stops really are.
+    return '<div class="path"><svg class="trail" preserveAspectRatio="none"><path stroke="var(--petrol)" stroke-width="5" stroke-dasharray="3 11" fill="none" stroke-linecap="round" opacity="0.85"/></svg>'
       + items.map(stopHtml).join("") + "</div>";
+  }
+
+  // Draws the curved connector through the *actual* rendered node centers
+  // (not guessed coordinates) — task names wrap to different numbers of
+  // lines, so stop heights vary and can't be predicted before layout.
+  function drawTrail(pathEl) {
+    if (!pathEl) return;
+    var svg = pathEl.querySelector("svg.trail");
+    var pathTag = svg && svg.querySelector("path");
+    var nodes = pathEl.querySelectorAll(".node");
+    if (!svg || !pathTag || !nodes.length) return;
+    var box = pathEl.getBoundingClientRect();
+    var w = Math.max(1, box.width), h = Math.max(1, box.height);
+    svg.setAttribute("viewBox", "0 0 " + w.toFixed(1) + " " + h.toFixed(1));
+    var pts = Array.prototype.map.call(nodes, function (n) {
+      var r = n.getBoundingClientRect();
+      return [(r.left + r.width / 2 - box.left).toFixed(1), (r.top + r.height / 2 - box.top).toFixed(1)];
+    });
+    var d = "M" + pts[0][0] + " " + pts[0][1];
+    for (var i = 1; i < pts.length; i++) {
+      var prevMidY = ((+pts[i - 1][1] + +pts[i][1]) / 2).toFixed(1);
+      d += " S " + pts[i - 1][0] + " " + prevMidY + "," + pts[i][0] + " " + pts[i][1];
+    }
+    pathTag.setAttribute("d", d);
   }
 
   function renderRoomDetail(state, todayISO, roomId) {
@@ -160,7 +178,19 @@
     else if (mode === "quest") el.innerHTML = renderQuestDetail(state, todayISO, openId);
     else el.innerHTML = renderGrid(state, todayISO);
     wireEvents(el, state);
+    if (mode === "room" || mode === "quest") {
+      var pathEl = el.querySelector(".path");
+      // Fonts/webfont swap can still reflow text after this fires once, so
+      // draw on the next frame (post-layout) and once more shortly after.
+      requestAnimationFrame(function () { drawTrail(pathEl); });
+      setTimeout(function () { drawTrail(pathEl); }, 300);
+    }
   }
+
+  window.addEventListener("resize", function () {
+    if (mode !== "room" && mode !== "quest") return;
+    drawTrail(document.querySelector("#view-dnes .path"));
+  });
 
   function wireEvents(el, state) {
     if (mode === "grid") {
